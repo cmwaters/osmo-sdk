@@ -90,8 +90,8 @@ func (k Keeper) Grants(c context.Context, req *authz.QueryGrantsRequest) (*authz
 	}, nil
 }
 
-// GranterGrants implements the Query/GranterGrants gRPC method.
-func (k Keeper) GranterGrants(c context.Context, req *authz.QueryGranterGrantsRequest) (*authz.QueryGranterGrantsResponse, error) {
+// IssuedGrants implements the Query/IssuedGrants gRPC method.
+func (k Keeper) IssuedGrants(c context.Context, req *authz.QueryIssuedGrantsRequest) (*authz.QueryIssuedGrantsResponse, error) {
 	if req == nil {
 		return nil, status.Errorf(codes.InvalidArgument, "empty request")
 	}
@@ -105,7 +105,7 @@ func (k Keeper) GranterGrants(c context.Context, req *authz.QueryGranterGrantsRe
 	store := ctx.KVStore(k.storeKey)
 	authzStore := prefix.NewStore(store, grantStoreKey(nil, granter, ""))
 
-	var authorizations []*authz.Grant
+	var grants []*authz.GrantAuthorization
 	pageRes, err := query.FilteredPaginate(authzStore, req.Pagination, func(key []byte, value []byte,
 		accumulate bool) (bool, error) {
 		auth, err := unmarshalAuthorization(k.cdc, value)
@@ -120,9 +120,13 @@ func (k Keeper) GranterGrants(c context.Context, req *authz.QueryGranterGrantsRe
 				return false, status.Errorf(codes.Internal, err.Error())
 			}
 
-			authorizations = append(authorizations, &authz.Grant{
+			grantee, granter := addressesFromGrantStoreKey(key)
+
+			grants = append(grants, &authz.GrantAuthorization{
 				Authorization: any,
 				Expiration:    auth.Expiration,
+				Granter:       granter.String(),
+				Grantee:       grantee.String(),
 			})
 		}
 		return true, nil
@@ -131,14 +135,14 @@ func (k Keeper) GranterGrants(c context.Context, req *authz.QueryGranterGrantsRe
 		return nil, err
 	}
 
-	return &authz.QueryGranterGrantsResponse{
-		Grants:     authorizations,
+	return &authz.QueryIssuedGrantsResponse{
+		Grants:     grants,
 		Pagination: pageRes,
 	}, nil
 }
 
-// GranterGrants implements the Query/GranterGrants gRPC method.
-func (k Keeper) GranteeGrants(c context.Context, req *authz.QueryGranteeGrantsRequest) (*authz.QueryGranteeGrantsResponse, error) {
+// ReceivedGrants implements the Query/ReceivedGrants gRPC method.
+func (k Keeper) ReceivedGrants(c context.Context, req *authz.QueryReceivedGrantsRequest) (*authz.QueryReceivedGrantsResponse, error) {
 	if req == nil {
 		return nil, status.Errorf(codes.InvalidArgument, "empty request")
 	}
@@ -152,7 +156,7 @@ func (k Keeper) GranteeGrants(c context.Context, req *authz.QueryGranteeGrantsRe
 	store := ctx.KVStore(k.storeKey)
 	authzStore := prefix.NewStore(store, grantStoreKey(grantee, nil, ""))
 
-	var authorizations []*authz.Grant
+	var authorizations []*authz.GrantAuthorization
 	pageRes, err := query.FilteredPaginate(authzStore, req.Pagination, func(key []byte, value []byte,
 		accumulate bool) (bool, error) {
 		auth, err := unmarshalAuthorization(k.cdc, value)
@@ -167,9 +171,13 @@ func (k Keeper) GranteeGrants(c context.Context, req *authz.QueryGranteeGrantsRe
 				return false, status.Errorf(codes.Internal, err.Error())
 			}
 
-			authorizations = append(authorizations, &authz.Grant{
+			grantee, granter := addressesFromGrantStoreKey(key)
+
+			authorizations = append(authorizations, &authz.GrantAuthorization{
 				Authorization: any,
 				Expiration:    auth.Expiration,
+				Granter:       granter.String(),
+				Grantee:       grantee.String(),
 			})
 		}
 		return true, nil
@@ -178,7 +186,7 @@ func (k Keeper) GranteeGrants(c context.Context, req *authz.QueryGranteeGrantsRe
 		return nil, err
 	}
 
-	return &authz.QueryGranteeGrantsResponse{
+	return &authz.QueryReceivedGrantsResponse{
 		Grants:     authorizations,
 		Pagination: pageRes,
 	}, nil
