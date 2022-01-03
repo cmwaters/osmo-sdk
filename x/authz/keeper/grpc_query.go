@@ -120,7 +120,9 @@ func (k Keeper) IssuedGrants(c context.Context, req *authz.QueryIssuedGrantsRequ
 				return false, status.Errorf(codes.Internal, err.Error())
 			}
 
-			grantee, granter := addressesFromGrantStoreKey(key)
+			ctx.Logger().Error("parsing key", "key", key, "length", len(key), "addrLen", key[0], "prefix", grantStoreKey(nil, granter, ""))
+			grantee := firstAddressFromGrantStoreKey(key)
+			ctx.Logger().Error("successfully parsed key", "address", grantee)
 
 			grants = append(grants, &authz.GrantAuthorization{
 				Authorization: any,
@@ -154,14 +156,19 @@ func (k Keeper) ReceivedGrants(c context.Context, req *authz.QueryReceivedGrants
 
 	ctx := sdk.UnwrapSDKContext(c)
 	store := ctx.KVStore(k.storeKey)
-	authzStore := prefix.NewStore(store, grantStoreKey(grantee, nil, ""))
 
 	var authorizations []*authz.GrantAuthorization
-	pageRes, err := query.FilteredPaginate(authzStore, req.Pagination, func(key []byte, value []byte,
+	pageRes, err := query.FilteredPaginate(store, req.Pagination, func(key []byte, value []byte,
 		accumulate bool) (bool, error) {
 		auth, err := unmarshalAuthorization(k.cdc, value)
 		if err != nil {
 			return false, err
+		}
+
+		granter, g := addressesFromGrantStoreKey(key)
+		ctx.Logger().Error("iterating grant store", "gotGrantee", g.String(), "expectedGrantee", req.Grantee)
+		if !g.Equals(grantee) {
+			return false, nil
 		}
 
 		auth1 := auth.GetAuthorization()
@@ -170,8 +177,6 @@ func (k Keeper) ReceivedGrants(c context.Context, req *authz.QueryReceivedGrants
 			if err != nil {
 				return false, status.Errorf(codes.Internal, err.Error())
 			}
-
-			grantee, granter := addressesFromGrantStoreKey(key)
 
 			authorizations = append(authorizations, &authz.GrantAuthorization{
 				Authorization: any,
