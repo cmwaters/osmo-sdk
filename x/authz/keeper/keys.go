@@ -48,5 +48,5 @@ func addressesFromGrantStoreKey(key []byte) (granterAddr, granteeAddr sdk.AccAdd
 
 func firstAddressFromGrantStoreKey(key []byte) sdk.AccAddress {
 	addrLen := key[0]
-	return sdk.AccAddress(key[1 : 2+addrLen])
+	return sdk.AccAddress(key[1 : 1+addrLen])
 }

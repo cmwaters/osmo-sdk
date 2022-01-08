@@ -9,6 +9,7 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/x/authz"
+	"github.com/cosmos/cosmos-sdk/types/query"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 )
 
@@ -159,6 +160,85 @@ func (suite *TestSuite) TestGRPCQueryAuthorizations() {
 				suite.Require().Error(err)
 			}
 			testCase.postTest(result)
+		})
+	}
+}
+
+func (suite *TestSuite) TestGRPCQueryIssuedGrants() {
+	require := suite.Require()
+	app, ctx, queryClient, addrs := suite.app, suite.ctx, suite.queryClient, suite.addrs
+
+	testCases := []struct {
+		msg      string
+		preRun   func()
+		expError bool
+		request  authz.QueryIssuedGrantsRequest
+		addresses []sdk.AccAddress
+	}{
+		{
+			"fail invalid granter addr",
+			func() {},
+			true,
+			authz.QueryIssuedGrantsRequest{},
+			[]sdk.AccAddress{},
+		},
+		{
+			"valid case, single authorization",
+			func() {
+				now := ctx.BlockHeader().Time
+				newCoins := sdk.NewCoins(sdk.NewInt64Coin("steak", 100))
+				authorization := &banktypes.SendAuthorization{SpendLimit: newCoins}
+				err := app.AuthzKeeper.SaveGrant(ctx, addrs[1], addrs[0], authorization, now.Add(time.Hour))
+				require.NoError(err)
+			},
+			false,
+			authz.QueryIssuedGrantsRequest{
+				Granter: addrs[0].String(),
+			},
+			[]sdk.AccAddress{addrs[1]},
+		},
+		{
+			"valid case, multiple authorization",
+			func() {
+				now := ctx.BlockHeader().Time
+				newCoins := sdk.NewCoins(sdk.NewInt64Coin("steak", 100))
+				authorization := &banktypes.SendAuthorization{SpendLimit: newCoins}
+				err := app.AuthzKeeper.SaveGrant(ctx, addrs[2], addrs[0], authorization, now.Add(time.Hour))
+				require.NoError(err)
+			},
+			false,
+			authz.QueryIssuedGrantsRequest{
+				Granter: addrs[0].String(),
+			},
+			[]sdk.AccAddress{addrs[1], addrs[2]},
+		},
+		{
+			"valid case, pagination",
+			func() {},
+			false,
+			authz.QueryIssuedGrantsRequest{
+				Granter: addrs[0].String(),
+				Pagination: &query.PageRequest{
+					Limit: 1,
+				},
+			},
+			[]sdk.AccAddress{addrs[1], addrs[2]},
+		},
+	}
+
+	for _, tc := range testCases {
+		suite.Run(fmt.Sprintf("Case %s", tc.msg), func() {
+			tc.preRun()
+			result, err := queryClient.IssuedGrants(gocontext.Background(), &tc.request)
+			if tc.expError {
+				require.Error(err)
+			} else {
+				require.NoError(err)
+				for idx, grant := range result.Grants {
+					require.Equal(tc.addresses[idx].String(), grant.Grantee)
+					require.Equal(addrs[0].String(), grant.Granter)
+				}
+			}
 		})
 	}
 }

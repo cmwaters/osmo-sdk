@@ -120,10 +120,7 @@ func (k Keeper) IssuedGrants(c context.Context, req *authz.QueryIssuedGrantsRequ
 				return false, status.Errorf(codes.Internal, err.Error())
 			}
 
-			ctx.Logger().Error("parsing key", "key", key, "length", len(key), "addrLen", key[0], "prefix", grantStoreKey(nil, granter, ""))
 			grantee := firstAddressFromGrantStoreKey(key)
-			ctx.Logger().Error("successfully parsed key", "address", grantee)
-
 			grants = append(grants, &authz.GrantAuthorization{
 				Authorization: any,
 				Expiration:    auth.Expiration,
